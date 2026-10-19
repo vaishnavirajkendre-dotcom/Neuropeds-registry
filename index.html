@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pediatric Neurology & Epilepsy Clinic Registry | Dr. D. Y. Patil Hospital</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS (Excel) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+  <!-- Firebase SDKs (Compat version for reliable single-file HTML use) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dypNavy: '#0F284E',
+            dypTeal: '#0D9488',
+            dypLightTeal: '#F0FDFA'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="bg-dypNavy text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-dypTeal p-2 rounded-lg text-white">
+          <i data-lucide="activity" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-black tracking-tight leading-tight">Pediatric Neurology & Epilepsy Clinic Registry</h1>
+          <p class="text-xs text-slate-300 font-medium">Department of Pediatrics • Dr. D. Y. Patil Hospital & Research Centre, Nerul</p>
+        </div>
+      </div>
+      
+      <!-- Live Sync Status Indicator -->
+      <div class="flex items-center space-x-3">
+        <span id="syncBadge" class="text-xs bg-slate-800 border border-slate-600 text-slate-300 px-3 py-1 rounded-full font-semibold flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Connecting to Cloud...
+        </span>
+        <button onclick="switchView('register')" class="bg-dypTeal hover:bg-teal-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow flex items-center space-x-1.5 transition">
+          <i data-lucide="user-plus" class="w-4 h-4"></i>
+          <span>+ Enter Patient</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- TABS NAVIGATION -->
+    <nav class="bg-slate-900/60 border-t border-slate-700/60">
+      <div class="max-w-7xl mx-auto px-4 flex space-x-4 sm:space-x-8 text-sm font-semibold text-slate-300">
+        <button onclick="switchView('dashboard')" id="nav-dashboard" class="py-2.5 border-b-2 border-dypTeal text-white">Registry Directory</button>
+        <button onclick="switchView('register')" id="nav-register" class="py-2.5 border-b-2 border-transparent hover:text-white">Patient Entry Form</button>
+        <button onclick="switchView('appointments')" id="nav-appointments" class="py-2.5 border-b-2 border-transparent hover:text-white">Appointments</button>
+        <button onclick="switchView('backup')" id="nav-backup" class="py-2.5 border-b-2 border-transparent hover:text-white">Excel & Backup</button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+    <!-- 1. PATIENT REGISTRATION FORM -->
+    <section id="view-register" class="max-w-4xl mx-auto">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
+        <div class="flex justify-between items-start border-b pb-4 mb-6">
+          <div>
+            <h2 class="text-xl font-black text-dypNavy">New Patient Registration</h2>
+            <p class="text-xs text-slate-500 mt-1">Saves immediately to all clinic computers simultaneously.</p>
+          </div>
+          <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded font-semibold border">MRD must be unique</span>
+        </div>
+
+        <form id="regForm" onsubmit="savePatient(event, false)" class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">MRD Number *</label>
+              <input type="text" id="regMrd" required placeholder="e.g. MRD-90412" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-slate-50 font-mono font-bold">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Proforma Number *</label>
+              <input type="text" id="regProforma" required placeholder="e.g. PN-2026-12" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-slate-50 font-mono">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Patient Full Name *</label>
+              <input type="text" id="regName" required placeholder="Child's Full Name" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Age (Years) *</label>
+              <input type="number" id="regAgeY" min="0" max="21" value="0" required class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Age (Months)</label>
+              <input type="number" id="regAgeM" min="0" max="11" value="0" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Sex *</label>
+              <select id="regSex" required class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-white">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile Contact</label>
+              <input type="tel" id="regMobile" placeholder="10-digit mobile" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Primary Diagnosis *</label>
+              <input type="text" id="regPrimaryDiag" list="diagnosisList" required placeholder="Select or type diagnosis..." class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Secondary Diagnosis</label>
+              <input type="text" id="regSecondaryDiag" list="diagnosisList" placeholder="e.g. GDD, Speech Delay" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+            </div>
+          </div>
+
+          <datalist id="diagnosisList">
+            <option value="Focal Epilepsy">
+            <option value="Generalized Tonic-Clonic Epilepsy (GTCs)">
+            <option value="West Syndrome / Infantile Spasms">
+            <option value="Lennox-Gastaut Syndrome (LGS)">
+            <option value="Benign Rolandic Epilepsy (SeLECTS)">
+            <option value="Childhood Absence Epilepsy">
+            <option value="Febrile Seizures (Simple)">
+            <option value="Febrile Seizures (Complex)">
+            <option value="Cerebral Palsy - Spastic Quadriparesis">
+            <option value="Cerebral Palsy - Spastic Diplegia">
+            <option value="Cerebral Palsy - Hemiparesis">
+            <option value="Global Developmental Delay (GDD)">
+            <option value="Autism Spectrum Disorder with Epilepsy">
+            <option value="Drug-Resistant Epilepsy (DRE)">
+            <option value="Tuberous Sclerosis Complex">
+          </datalist>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Residential Address</label>
+            <input type="text" id="regAddress" placeholder="Locality, Sector, City" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">First Visit Attendance Date *</label>
+              <input type="date" id="regFirstVisit" required class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Next Follow-Up Appointment</label>
+              <input type="date" id="regNextAppt" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-white">
+            </div>
+          </div>
+
+          <div class="flex flex-wrap justify-end gap-3 pt-3">
+            <button type="button" onclick="switchView('dashboard')" class="px-5 py-2.5 border rounded-lg text-sm font-semibold hover:bg-slate-100">Cancel</button>
+            <button type="button" onclick="savePatient(event, true)" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg shadow-sm text-sm">
+              Save & Add Another Patient
+            </button>
+            <button type="submit" id="submitBtn" class="px-6 py-2.5 bg-dypTeal hover:bg-teal-700 text-white font-bold rounded-lg shadow-sm text-sm">
+              Save & View Directory
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2. DIRECTORY / DASHBOARD -->
+    <section id="view-dashboard" class="hidden space-y-6">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Patients</div>
+          <div id="statTotalPatients" class="text-3xl font-extrabold text-dypNavy mt-1">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completed Visits</div>
+          <div id="statTotalVisits" class="text-3xl font-extrabold text-dypTeal mt-1">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Today's Appts</div>
+          <div id="statTodayAppts" class="text-3xl font-extrabold text-blue-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Upcoming Appts</div>
+          <div id="statUpcomingAppts" class="text-3xl font-extrabold text-indigo-600 mt-1">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Missed / Overdue</div>
+          <div id="statMissedAppts" class="text-3xl font-extrabold text-rose-600 mt-1">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+          <div>
+            <h2 class="text-lg font-bold text-dypNavy">Live Patient Registry</h2>
+            <p class="text-xs text-slate-500">Universal search across Name, MRD, Proforma, Diagnosis, or Mobile</p>
+          </div>
+          <div class="relative w-full md:w-80">
+            <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Search anything..." 
+                   class="w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none bg-slate-50">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider border-b">
+                <th class="p-3">Sr.</th>
+                <th class="p-3">Patient Name</th>
+                <th class="p-3">Age / Sex</th>
+                <th class="p-3">MRD No.</th>
+                <th class="p-3">Proforma</th>
+                <th class="p-3">Primary Diagnosis</th>
+                <th class="p-3">First Visit</th>
+                <th class="p-3 text-center">Visits</th>
+                <th class="p-3">Last Visit</th>
+                <th class="p-3">Next Appt</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="patientTableBody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. APPOINTMENTS -->
+    <section id="view-appointments" class="hidden space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b pb-4">
+          <div>
+            <h2 class="text-lg font-bold text-dypNavy">Appointment Tracking</h2>
+            <p class="text-xs text-slate-500">Track scheduled OPD visits across all hospital rooms</p>
+          </div>
+          <div class="inline-flex rounded-lg border bg-slate-50 p-1">
+            <button onclick="filterAppts('today')" id="tab-today" class="px-3 py-1.5 text-xs font-bold rounded bg-dypNavy text-white">Today</button>
+            <button onclick="filterAppts('tomorrow')" id="tab-tomorrow" class="px-3 py-1.5 text-xs font-bold rounded text-slate-600 hover:text-dypNavy">Tomorrow</button>
+            <button onclick="filterAppts('upcoming')" id="tab-upcoming" class="px-3 py-1.5 text-xs font-bold rounded text-slate-600 hover:text-dypNavy">Upcoming</button>
+            <button onclick="filterAppts('overdue')" id="tab-overdue" class="px-3 py-1.5 text-xs font-bold rounded text-slate-600 hover:text-dypNavy">Overdue</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider border-b">
+                <th class="p-3">Appt Date</th>
+                <th class="p-3">Patient Name</th>
+                <th class="p-3">MRD No.</th>
+                <th class="p-3">Diagnosis</th>
+                <th class="p-3">Mobile</th>
+                <th class="p-3">Status</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="appointmentTableBody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. EXCEL & BACKUP -->
+    <section id="view-backup" class="hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center space-x-3 mb-4">
+            <div class="p-3 bg-teal-100 text-dypTeal rounded-lg"><i data-lucide="file-spreadsheet" class="w-6 h-6"></i></div>
+            <div>
+              <h3 class="text-base font-bold text-dypNavy">Export to Excel (.xlsx)</h3>
+              <p class="text-xs text-slate-500">Download the complete clinic registry</p>
+            </div>
+          </div>
+          <p class="text-sm text-slate-600 mb-6">Exports all demographics, diagnoses, visit logs, and upcoming appointments from the cloud into a spreadsheet.</p>
+          <button onclick="exportToExcel()" class="inline-flex items-center space-x-2 bg-dypNavy hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-lg text-sm shadow">
+            <i data-lucide="download" class="w-4 h-4"></i><span>Download Excel File</span>
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center space-x-3 mb-4">
+            <div class="p-3 bg-blue-100 text-blue-600 rounded-lg"><i data-lucide="upload" class="w-6 h-6"></i></div>
+            <div>
+              <h3 class="text-base font-bold text-dypNavy">Import from Excel</h3>
+              <p class="text-xs text-slate-500">Bulk upload patients to the cloud</p>
+            </div>
+          </div>
+          <div class="mb-4">
+            <button onclick="downloadSampleTemplate()" class="text-xs font-bold text-dypTeal hover:underline inline-flex items-center space-x-1">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i><span>Download Excel Import Template</span>
+            </button>
+          </div>
+          <input type="file" id="excelFile" accept=".xlsx, .xls" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-dypLightTeal file:text-dypTeal hover:file:bg-teal-100 border rounded-lg p-2 mb-3">
+          <button onclick="importExcelFile()" class="w-full bg-dypTeal hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow">
+            Upload & Sync to Cloud
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- QUICK VISIT MODAL (< 10 SEC) -->
+  <div id="quickVisitModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border-t-4 border-dypTeal">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-base font-bold text-dypNavy">Record Attendance Visit</h3>
+        <button onclick="closeModal('quickVisitModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form onsubmit="submitQuickVisit(event)" class="space-y-4">
+        <input type="hidden" id="modalDocId">
+        <div class="bg-slate-50 p-3 rounded-lg border">
+          <div id="modalPatientName" class="font-bold text-dypNavy text-sm"></div>
+          <div id="modalPatientMrd" class="text-xs text-slate-500 font-mono"></div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Attendance Date (Defaults to Today) *</label>
+          <input type="date" id="modalVisitDate" required class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Next Follow-Up Date (Optional)</label>
+          <input type="date" id="modalNextAppt" class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-dypTeal focus:outline-none">
+        </div>
+        <button type="submit" class="w-full bg-dypTeal hover:bg-teal-700 text-white font-bold py-2 rounded-lg text-sm shadow">
+          Confirm Attendance (< 5s)
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE MODAL -->
+  <div id="profileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 border-t-4 border-dypNavy max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h3 id="profName" class="text-xl font-bold text-dypNavy"></h3>
+          <p id="profSub" class="text-xs text-slate-500"></p>
+        </div>
+        <button onclick="closeModal('profileModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="grid grid-cols-4 gap-2 bg-slate-50 p-3 rounded-lg border text-center my-4">
+        <div>
+          <div class="text-[10px] uppercase font-bold text-slate-500">Lifetime Visits</div>
+          <div id="profVisits" class="text-xl font-black text-dypTeal">0</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase font-bold text-slate-500">First Visit</div>
+          <div id="profFirstVisit" class="text-xs font-bold text-slate-700 mt-1">-</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase font-bold text-slate-500">Last Visit</div>
+          <div id="profLastVisit" class="text-xs font-bold text-slate-700 mt-1">-</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase font-bold text-slate-500">Next Appt</div>
+          <div id="profNextAppt" class="text-xs font-bold text-blue-600 mt-1">-</div>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-sm border-t pt-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div><strong class="text-xs text-slate-500 uppercase">Primary Diagnosis:</strong> <p id="profDiag1" class="font-semibold text-slate-800"></p></div>
+          <div><strong class="text-xs text-slate-500 uppercase">Secondary Diagnosis:</strong> <p id="profDiag2" class="text-slate-700"></p></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><strong class="text-xs text-slate-500 uppercase">Mobile:</strong> <p id="profPhone" class="text-slate-800"></p></div>
+          <div><strong class="text-xs text-slate-500 uppercase">Address:</strong> <p id="profAddress" class="text-slate-700"></p></div>
+        </div>
+      </div>
+
+      <div class="mt-6 border-t pt-4">
+        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Chronological Visit History</h4>
+        <div id="profHistory" class="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-slate-100 border-t py-4 text-center text-xs text-slate-500 mt-auto">
+    Pediatric Neurology & Epilepsy Clinic Registry • Dept of Pediatrics, Dr. D. Y. Patil Hospital, Nerul
+  </footer>
+
+  <!-- JAVASCRIPT & FIREBASE REALTIME CONNECTION -->
+  <script>
+    // 1. YOUR EXACT FIREBASE CONFIGURATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyCnlQbGDymfK9YuosnqB0sxQpjw3S0Dbgk",
+      authDomain: "neuro-registry.firebaseapp.com",
+      databaseURL: "https://neuro-registry-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "neuro-registry",
+      storageBucket: "neuro-registry.firebasestorage.app",
+      messagingSenderId: "893806926325",
+      appId: "1:893806926325:web:25bd32a033fcbf5e90a8bc",
+      measurementId: "G-JV2Q4E3EDC"
+    };
+
+    // Initialize Firebase & Firestore
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let patients = [];
+    let currentApptTab = 'today';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('regFirstVisit').value = today;
+      document.getElementById('modalVisitDate').value = today;
+
+      // START REAL-TIME LISTENER (Syncs all computers instantly)
+      listenToLiveDatabase();
+    });
+
+    function listenToLiveDatabase() {
+      db.collection("patients").onSnapshot((snapshot) => {
+        patients = [];
+        snapshot.forEach((doc) => {
+          patients.push({ docId: doc.id, ...doc.data() });
+        });
+
+        // Update badge to green
+        const badge = document.getElementById('syncBadge');
+        badge.className = "text-xs bg-emerald-900 border border-emerald-500 text-emerald-200 px-3 py-1 rounded-full font-semibold flex items-center gap-2";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Cloud Synced (${patients.length} patients)`;
+
+        refreshDashboard();
+        updateDiagnosisAutocomplete();
+      }, (error) => {
+        console.error("Firestore error:", error);
+        const badge = document.getElementById('syncBadge');
+        badge.className = "text-xs bg-rose-900 border border-rose-500 text-rose-200 px-3 py-1 rounded-full font-semibold";
+        badge.textContent = "Check Firebase Rules";
+      });
+    }
+
+    // NAVIGATION
+    function switchView(viewName) {
+      ['dashboard', 'register', 'appointments', 'backup'].forEach(v => {
+        document.getElementById(`view-${v}`).classList.add('hidden');
+        document.getElementById(`nav-${v}`).classList.replace('text-white', 'text-slate-300');
+        document.getElementById(`nav-${v}`).classList.replace('border-dypTeal', 'border-transparent');
+      });
+      document.getElementById(`view-${viewName}`).classList.remove('hidden');
+      document.getElementById(`nav-${viewName}`).classList.replace('text-slate-300', 'text-white');
+      document.getElementById(`nav-${viewName}`).classList.replace('border-transparent', 'border-dypTeal');
+
+      if (viewName === 'dashboard') refreshDashboard();
+      if (viewName === 'appointments') filterAppts(currentApptTab);
+      lucide.createIcons();
+    }
+
+    // DASHBOARD & SEARCH
+    function refreshDashboard() {
+      const todayStr = new Date().toISOString().split('T')[0];
+      let totalVisits = 0, todayAppts = 0, upcomingAppts = 0, missedAppts = 0;
+
+      patients.forEach(p => {
+        totalVisits += (p.visits ? p.visits.length : 0);
+        if (p.nextAppt && p.apptStatus === 'Scheduled') {
+          if (p.nextAppt === todayStr) todayAppts++;
+          else if (p.nextAppt > todayStr) upcomingAppts++;
+          else if (p.nextAppt < todayStr) missedAppts++;
+        }
+      });
+
+      document.getElementById('statTotalPatients').textContent = patients.length;
+      document.getElementById('statTotalVisits').textContent = totalVisits;
+      document.getElementById('statTodayAppts').textContent = todayAppts;
+      document.getElementById('statUpcomingAppts').textContent = upcomingAppts;
+      document.getElementById('statMissedAppts').textContent = missedAppts;
+
+      renderPatientTable(patients);
+    }
+
+    function handleSearch(term) {
+      const q = term.toLowerCase().trim();
+      if (!q) {
+        renderPatientTable(patients);
+        return;
+      }
+      const filtered = patients.filter(p => 
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.mrd && p.mrd.toLowerCase().includes(q)) ||
+        (p.proforma && p.proforma.toLowerCase().includes(q)) ||
+        (p.diag1 && p.diag1.toLowerCase().includes(q)) ||
+        (p.mobile && p.mobile.includes(q))
+      );
+      renderPatientTable(filtered);
+    }
+
+    function renderPatientTable(list) {
+      const tbody = document.getElementById('patientTableBody');
+      if (list.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="11" class="text-center py-10 text-slate-400">
+              <i data-lucide="users" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+              <p>No registered patients yet.</p>
+              <button onclick="switchView('register')" class="mt-2 text-xs font-bold text-dypTeal hover:underline">+ Register Your First Patient</button>
+            </td>
+          </tr>`;
+        lucide.createIcons();
+        return;
+      }
+
+      tbody.innerHTML = list.map((p, idx) => {
+        const sortedVisits = (p.visits || []).slice().sort();
+        const firstVisit = sortedVisits[0] || '-';
+        const lastVisit = sortedVisits[sortedVisits.length - 1] || '-';
+
+        return `
+          <tr class="hover:bg-slate-50 border-b transition">
+            <td class="p-3 text-xs text-slate-400">${idx + 1}</td>
+            <td class="p-3 font-bold text-dypNavy">
+              <a href="javascript:void(0)" onclick="openProfile('${p.docId}')" class="hover:underline">${p.name}</a>
+            </td>
+            <td class="p-3 text-xs">${p.age_y}y ${p.age_m}m / <span class="font-medium">${p.sex}</span></td>
+            <td class="p-3 text-xs font-mono font-bold text-slate-800">${p.mrd}</td>
+            <td class="p-3 text-xs font-mono text-slate-600">${p.proforma}</td>
+            <td class="p-3 text-xs font-medium text-slate-800 truncate max-w-xs" title="${p.diag1}">${p.diag1}</td>
+            <td class="p-3 text-xs text-slate-600">${firstVisit}</td>
+            <td class="p-3 text-xs font-bold text-center text-dypTeal">${sortedVisits.length}</td>
+            <td class="p-3 text-xs text-slate-600">${lastVisit}</td>
+            <td class="p-3 text-xs font-semibold ${p.nextAppt ? 'text-blue-600' : 'text-slate-400'}">${p.nextAppt || 'None'}</td>
+            <td class="p-3 text-right space-x-1 whitespace-nowrap">
+              <button onclick="openQuickVisit('${p.docId}')" class="px-2.5 py-1 bg-dypTeal text-white rounded text-xs font-bold hover:bg-teal-700" title="Log Attendance (<5s)">+ Visit</button>
+              <button onclick="openProfile('${p.docId}')" class="px-2.5 py-1 bg-slate-200 text-slate-700 rounded text-xs font-semibold hover:bg-slate-300">Profile</button>
+              <button onclick="deletePatient('${p.docId}', '${escapeQuotes(p.name)}')" class="px-2 py-1 text-slate-400 hover:text-rose-600 rounded text-xs font-bold" title="Delete"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function escapeQuotes(str) {
+      return (str || '').replace(/'/g, "\\'");
+    }
+
+    // REGISTRATION -> FIRESTORE
+    async function savePatient(e, addAnother = false) {
+      if (e) e.preventDefault();
+      const mrd = document.getElementById('regMrd').value.trim();
+
+      // Check unique MRD
+      if (patients.some(p => p.mrd && p.mrd.toLowerCase() === mrd.toLowerCase())) {
+        alert(`Duplicate MRD: A patient with MRD "${mrd}" is already registered.`);
+        return;
+      }
+
+      const firstVisit = document.getElementById('regFirstVisit').value || new Date().toISOString().split('T')[0];
+      const nextAppt = document.getElementById('regNextAppt').value || null;
+
+      const newPatient = {
+        mrd: mrd,
+        proforma: document.getElementById('regProforma').value.trim(),
+        name: document.getElementById('regName').value.trim(),
+        age_y: parseInt(document.getElementById('regAgeY').value) || 0,
+        age_m: parseInt(document.getElementById('regAgeM').value) || 0,
+        sex: document.getElementById('regSex').value,
+        mobile: document.getElementById('regMobile').value.trim(),
+        diag1: document.getElementById('regPrimaryDiag').value.trim(),
+        diag2: document.getElementById('regSecondaryDiag').value.trim(),
+        address: document.getElementById('regAddress').value.trim(),
+        visits: [firstVisit],
+        nextAppt: nextAppt,
+        apptStatus: nextAppt ? 'Scheduled' : 'None',
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        await db.collection("patients").add(newPatient);
+
+        if (addAnother) {
+          document.getElementById('regForm').reset();
+          document.getElementById('regFirstVisit').value = new Date().toISOString().split('T')[0];
+          document.getElementById('regMrd').focus();
+          alert(`Saved ${newPatient.name}! Ready for next patient.`);
+        } else {
+          alert('Patient registered and synced to all devices!');
+          document.getElementById('regForm').reset();
+          switchView('dashboard');
+        }
+      } catch (err) {
+        alert("Error saving: " + err.message);
+      }
+    }
+
+    // QUICK VISIT RECORDING (< 10 SEC)
+    function openQuickVisit(docId) {
+      const p = patients.find(x => x.docId === docId);
+      if (!p) return;
+
+      document.getElementById('modalDocId').value = p.docId;
+      document.getElementById('modalPatientName').textContent = p.name;
+      document.getElementById('modalPatientMrd').textContent = `MRD: ${p.mrd} • Proforma: ${p.proforma}`;
+      document.getElementById('modalVisitDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('modalNextAppt').value = '';
+      document.getElementById('quickVisitModal').classList.remove('hidden');
+    }
+
+    async function submitQuickVisit(e) {
+      e.preventDefault();
+      const docId = document.getElementById('modalDocId').value;
+      const visitDate = document.getElementById('modalVisitDate').value;
+      const nextAppt = document.getElementById('modalNextAppt').value;
+
+      const p = patients.find(x => x.docId === docId);
+      if (!p) return;
+
+      const visits = p.visits ? [...p.visits] : [];
+      if (visits.includes(visitDate)) {
+        alert(`Attendance is already marked for ${visitDate}`);
+        return;
+      }
+
+      visits.push(visitDate);
+
+      const updateData = { visits: visits };
+      if (nextAppt) {
+        updateData.nextAppt = nextAppt;
+        updateData.apptStatus = 'Scheduled';
+      }
+
+      try {
+        await db.collection("patients").doc(docId).update(updateData);
+        closeModal('quickVisitModal');
+      } catch (err) {
+        alert("Error logging visit: " + err.message);
+      }
+    }
+
+    // DELETE PATIENT
+    async function deletePatient(docId, name) {
+      if (confirm(`Are you sure you want to delete patient "${name}"? This deletes it across all computers.`)) {
+        await db.collection("patients").doc(docId).delete();
+      }
+    }
+
+    // PROFILE
+    function openProfile(docId) {
+      const p = patients.find(x => x.docId === docId);
+      if (!p) return;
+
+      const sorted = (p.visits || []).slice().sort();
+      document.getElementById('profName').textContent = p.name;
+      document.getElementById('profSub').textContent = `MRD: ${p.mrd} • Proforma: ${p.proforma} • ${p.age_y}y ${p.age_m}m • ${p.sex}`;
+      document.getElementById('profVisits').textContent = sorted.length;
+      document.getElementById('profFirstVisit').textContent = sorted[0] || '-';
+      document.getElementById('profLastVisit').textContent = sorted[sorted.length - 1] || '-';
+      document.getElementById('profNextAppt').textContent = p.nextAppt || 'None';
+
+      document.getElementById('profDiag1').textContent = p.diag1;
+      document.getElementById('profDiag2').textContent = p.diag2 || 'None';
+      document.getElementById('profPhone').textContent = p.mobile || 'Not provided';
+      document.getElementById('profAddress').textContent = p.address || 'Not provided';
+
+      const histBox = document.getElementById('profHistory');
+      histBox.innerHTML = sorted.length === 0 ? '<p class="text-slate-400 py-2">No visits logged.</p>' :
+        sorted.slice().reverse().map((d, i) => `
+          <div class="py-1.5 flex justify-between text-slate-700">
+            <span>Visit #${sorted.length - i} on <strong>${d}</strong></span>
+            <span class="text-emerald-600 font-semibold text-[11px]">Attendance Logged</span>
+          </div>
+        `).join('');
+
+      document.getElementById('profileModal').classList.remove('hidden');
+    }
+
+    // APPOINTMENTS
+    function filterAppts(filter) {
+      currentApptTab = filter;
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+      ['today', 'tomorrow', 'upcoming', 'overdue'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === filter) btn.className = "px-3 py-1.5 text-xs font-bold rounded bg-dypNavy text-white";
+        else btn.className = "px-3 py-1.5 text-xs font-bold rounded text-slate-600 hover:text-dypNavy";
+      });
+
+      const list = patients.filter(p => {
+        if (!p.nextAppt || p.apptStatus !== 'Scheduled') return false;
+        if (filter === 'today') return p.nextAppt === todayStr;
+        if (filter === 'tomorrow') return p.nextAppt === tomorrowStr;
+        if (filter === 'upcoming') return p.nextAppt > todayStr;
+        if (filter === 'overdue') return p.nextAppt < todayStr;
+      });
+
+      const tbody = document.getElementById('appointmentTableBody');
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No appointments found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map(p => `
+        <tr class="hover:bg-slate-50 border-b">
+          <td class="p-3 font-mono font-bold text-dypNavy">${p.nextAppt}</td>
+          <td class="p-3 font-semibold">${p.name}</td>
+          <td class="p-3 text-xs font-mono">${p.mrd}</td>
+          <td class="p-3 text-xs text-slate-600 truncate max-w-xs">${p.diag1}</td>
+          <td class="p-3 text-xs">${p.mobile || '-'}</td>
+          <td class="p-3 text-xs"><span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800">Scheduled</span></td>
+          <td class="p-3 text-right space-x-1 whitespace-nowrap">
+            <button onclick="markVisited('${p.docId}')" class="px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded">Mark Visited</button>
+            <button onclick="rescheduleAppt('${p.docId}')" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded">Reschedule</button>
+            <button onclick="cancelAppt('${p.docId}')" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded">Cancel</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function markVisited(docId) {
+      const p = patients.find(x => x.docId === docId);
+      if (!p) return;
+      const date = p.nextAppt;
+      const visits = p.visits ? [...p.visits] : [];
+      if (!visits.includes(date)) visits.push(date);
+
+      await db.collection("patients").doc(docId).update({
+        visits: visits,
+        apptStatus: 'Completed',
+        nextAppt: null
+      });
+    }
+
+    async function rescheduleAppt(docId) {
+      const newDate = prompt('Enter new follow-up date (YYYY-MM-DD):');
+      if (!newDate) return;
+      await db.collection("patients").doc(docId).update({
+        nextAppt: newDate,
+        apptStatus: 'Scheduled'
+      });
+    }
+
+    async function cancelAppt(docId) {
+      if (!confirm('Cancel this scheduled appointment?')) return;
+      await db.collection("patients").doc(docId).update({
+        apptStatus: 'Cancelled',
+        nextAppt: null
+      });
+    }
+
+    // AUTOCOMPLETE
+    function updateDiagnosisAutocomplete() {
+      const datalist = document.getElementById('diagnosisList');
+      const allDiags = new Set([
+        "Focal Epilepsy", "Generalized Tonic-Clonic Epilepsy (GTCs)", "West Syndrome / Infantile Spasms",
+        "Lennox-Gastaut Syndrome (LGS)", "Benign Rolandic Epilepsy (SeLECTS)", "Childhood Absence Epilepsy",
+        "Febrile Seizures (Simple)", "Febrile Seizures (Complex)", "Febrile Status Epilepticus",
+        "Cerebral Palsy - Spastic Quadriparesis", "Cerebral Palsy - Spastic Diplegia",
+        "Global Developmental Delay (GDD)", "Autism Spectrum Disorder with Epilepsy", "Drug-Resistant Epilepsy (DRE)"
+      ]);
+
+      patients.forEach(p => {
+        if (p.diag1) allDiags.add(p.diag1);
+        if (p.diag2) allDiags.add(p.diag2);
+      });
+      datalist.innerHTML = Array.from(allDiags).map(d => `<option value="${d}">`).join('');
+    }
+
+    // EXCEL EXPORT
+    function exportToExcel() {
+      if (patients.length === 0) {
+        alert('Registry is empty. No patient records to export.');
+        return;
+      }
+      const data = patients.map(p => {
+        const sorted = (p.visits || []).slice().sort();
+        return {
+          "MRD Number": p.mrd,
+          "Proforma No": p.proforma,
+          "Patient Name": p.name,
+          "Age (Years)": p.age_y,
+          "Age (Months)": p.age_m,
+          "Sex": p.sex,
+          "Mobile": p.mobile,
+          "Primary Diagnosis": p.diag1,
+          "Secondary Diagnosis": p.diag2,
+          "Address": p.address,
+          "First Visit": sorted[0] || '',
+          "Total Completed Visits": sorted.length,
+          "Last Visit": sorted[sorted.length - 1] || '',
+          "Next Appointment": p.nextAppt || ''
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Clinic Registry");
+      XLSX.writeFile(workbook, `Pediatric_Neurology_Registry_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function downloadSampleTemplate() {
+      const sample = [{
+        "MRD Number": "DYP-2026-999",
+        "Proforma No": "PF-99",
+        "Patient Name": "Patient Name",
+        "Age Years": 3,
+        "Age Months": 6,
+        "Sex": "Male",
+        "Mobile": "9800000000",
+        "Primary Diagnosis": "Focal Epilepsy",
+        "Secondary Diagnosis": "GDD",
+        "Address": "Nerul",
+        "First Visit Date": "2026-01-01"
+      }];
+      const ws = XLSX.utils.json_to_sheet(sample);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      XLSX.writeFile(wb, "Patient_Import_Template.xlsx");
+    }
+
+    async function importExcelFile() {
+      const file = document.getElementById('excelFile').files[0];
+      if (!file) {
+        alert('Please choose an Excel (.xlsx) file first.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+        let added = 0;
+        for (const r of rows) {
+          const mrd = (r["MRD Number"] || r["MRD"] || "").toString().trim();
+          const name = (r["Patient Name"] || r["Name"] || "").toString().trim();
+          const diag1 = (r["Primary Diagnosis"] || r["Diagnosis"] || "").toString().trim();
+
+          if (!mrd || !name || !diag1 || patients.some(p => p.mrd && p.mrd.toLowerCase() === mrd.toLowerCase())) {
+            continue;
+          }
+
+          const visitDate = (r["First Visit Date"] || new Date().toISOString().split('T')[0]).toString();
+
+          await db.collection("patients").add({
+            mrd: mrd,
+            proforma: (r["Proforma No"] || r["Proforma"] || "PN-NA").toString().trim(),
+            name: name,
+            age_y: parseInt(r["Age Years"] || r["Age"]) || 0,
+            age_m: parseInt(r["Age Months"]) || 0,
+            sex: (r["Sex"] || "Male").toString().trim(),
+            mobile: (r["Mobile"] || "").toString().trim(),
+            diag1: diag1,
+            diag2: (r["Secondary Diagnosis"] || "").toString().trim(),
+            address: (r["Address"] || "").toString().trim(),
+            visits: [visitDate],
+            nextAppt: null,
+            apptStatus: 'None',
+            createdAt: new Date().toISOString()
+          });
+          added++;
+        }
+
+        alert(`Import Complete! ${added} patients synced to cloud.`);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
